@@ -1,4 +1,5 @@
 :root {
+  --topbar-h: 54px;
   --bg: #111214;
   --panel: #18191c;
   --panel-2: #1f2125;
@@ -51,7 +52,7 @@ b { color: var(--text); }
 
 /* ---------- top bar ---------- */
 .topbar {
-  height: 54px;
+  height: var(--topbar-h);
   display: flex; align-items: center; gap: 14px;
   padding: 0 16px;
   background: var(--panel);
@@ -82,7 +83,7 @@ b { color: var(--text); }
 
 /* ---------- layout ---------- */
 .layout {
-  height: calc(100% - 54px);
+  height: calc(100% - var(--topbar-h));
   display: grid;
   grid-template-columns: 236px 360px minmax(0, 1fr);
 }
@@ -351,14 +352,14 @@ body.comparing .listpane { display: none; }
 .modes a.on { background: var(--accent); color: var(--accent-ink); }
 .builder { display: none; }
 body[data-mode="builder"] .layout,
-body[data-mode="builder"] .search,
-body[data-mode="builder"] .nav-toggle,
 body[data-mode="builder"] .compare-tray { display: none !important; }
+/* the top bar keeps the same layout in both modes: Codex-only controls are hidden but keep their space */
+body[data-mode="builder"] .search,
+body[data-mode="builder"] .nav-toggle { visibility: hidden; pointer-events: none; }
 body[data-mode="builder"] .builder {
-  display: grid; height: calc(100% - 54px);
+  display: grid; height: calc(100% - var(--topbar-h));
   grid-template-columns: 240px 380px minmax(0, 1fr);
 }
-body[data-mode="builder"] .modes { margin-left: auto; }
 body[data-mode="builder"] .builder.b-new { grid-template-columns: 240px minmax(0, 1fr); }
 body[data-mode="builder"] .builder.b-view { grid-template-columns: 380px minmax(0, 1fr); }
 .b-viewlist { overflow-y: auto; min-height: 0; border-right: 1px solid var(--line); background: var(--panel); }
@@ -494,4 +495,11 @@ body[data-mode="builder"] .builder.b-view { grid-template-columns: 380px minmax(
 @media (max-width: 520px) {
   .brand-name { display: none; }
   .chk { font-size: 12px; }
+  /* phone: search moves to a second row of the top bar; the mode buttons keep their place */
+  :root { --topbar-h: 100px; }
+  body[data-mode="builder"] { --topbar-h: 54px; }
+  .topbar { flex-wrap: wrap; align-content: flex-start; row-gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+  .modes { margin-right: auto; }
+  .search { order: 10; flex: 1 1 100%; max-width: none; margin-left: 0; }
+  body[data-mode="builder"] .search { display: none; }
 }
