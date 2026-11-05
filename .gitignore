@@ -1,0 +1,10 @@
+# Local build inputs and logs (the hosted app downloads the data from GitHub itself)
+data/raw/
+data/bsdata.js
+data/bsdata.js.tmp
+data/version.js
+data/version.json
+data/update.log
+data/stratagems.version.json
+data/*.tmp
+.claude/
