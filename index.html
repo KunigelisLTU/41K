@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>40k Codex</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-view="list">
+<header class="topbar">
+  <button class="icon-btn nav-toggle" id="navToggle" aria-label="Factions">☰</button>
+  <div class="brand"><span class="brand-mark">✠</span><span class="brand-name">Codex</span><span class="brand-sub"></span></div>
+  <nav class="modes">
+    <a href="#/" data-mode="codex" id="codexLink">Codex</a>
+    <a href="#/b" data-mode="builder">Army Builder</a>
+  </nav>
+  <div class="search">
+    <input id="search" type="search" placeholder="Search…" autocomplete="off">
+    <label class="chk"><input type="checkbox" id="searchAll"> All factions</label>
+  </div>
+  <span class="data-status" id="dataStatus" hidden></span>
+  <button class="icon-btn" id="updBtn" aria-label="Check for updates" title="Check for updates">⟳</button>
+  <button class="icon-btn" id="themeBtn" aria-label="Theme">◐</button>
+</header>
+
+<div class="layout">
+  <nav class="factions" id="factions"></nav>
+
+  <section class="listpane">
+    <div class="list-head" id="listHead"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <main class="sheetpane" id="sheet">
+    <div class="empty" id="loading">
+      <div class="spinner"></div>
+      <p>Loading…</p>
+    </div>
+  </main>
+</div>
+
+<div class="builder" id="builder"></div>
+
+<div class="modal" id="modal" hidden><div class="modal-box"><button class="x modal-x" aria-label="Close">✕</button><div class="modal-body" id="modalBody"></div></div></div>
+
+<div class="compare-tray" id="tray" hidden></div>
+<div class="popover" id="popover" hidden></div>
+
+<script src="data/version.js" charset="utf-8"></script>
+<script src="app.js" charset="utf-8"></script>
+<script src="builder.js" charset="utf-8"></script>
+</body>
+</html>
