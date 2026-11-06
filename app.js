@@ -546,9 +546,12 @@ function setHash(o, replace) {
 function route() {
   /* Army Builder lives under #/b (builder.js) */
   const isBuilder = /^#\/b(\/|$)/.test(location.hash);
-  document.body.dataset.mode = isBuilder ? 'builder' : 'codex';
+  /* Play (battle tracker) lives under #/p (play.js) */
+  const isPlay = /^#\/p(\/|$)/.test(location.hash);
+  document.body.dataset.mode = isBuilder ? 'builder' : isPlay ? 'play' : 'codex';
   for (const a of document.querySelectorAll('.modes a')) a.classList.toggle('on', a.dataset.mode === document.body.dataset.mode);
   if (isBuilder) { document.body.classList.remove('nav-open'); if (window.Builder) Builder.route(); return; }
+  if (isPlay) { document.body.classList.remove('nav-open'); if (window.Play) Play.route(); return; }
   State.codexHash = location.hash;
   const o = parseHash();
   const fac = o.f && Data.cats[o.f] ? Data.cats[o.f] : (Data.cats[store.get('fac', '')] || (Data.factions[0] && Data.factions[0].cat));
