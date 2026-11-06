@@ -12,7 +12,7 @@ Open `index.html` in a browser (double-click). The first load takes a few second
 Upload these files to a GitHub repository (Add file → Upload files):
 
 ```
-index.html  app.js  builder.js  play.js  style.css  .nojekyll  README.md
+index.html  app.js  builder.js  play.js  changelog.js  style.css  .nojekyll  README.md
 data/stratagems.js
 ```
 
@@ -137,6 +137,22 @@ VP above a maximum are ignored (the log shows how many). Limits written in a Str
 The Primary Mission matchup table comes from [gregario/warhammer-oracle](https://github.com/gregario/warhammer-oracle)
 (MIT); the Event Companion shows the matchup only as graphics. Mission and card texts are not included: Secondary
 Mission names are typed in and remembered.
+## Change Log
+
+**Change Log** in the top bar shows what changed in the BSData data, version by version (needs internet).
+
+- A version is one BSData commit; **Per day** groups all commits of one day into one version.
+- **← Older / Newer →** (or the ← → keys) step through the versions; the list on the left jumps to any of them,
+  **Load older versions** reaches further back. The version the app has loaded is marked *Loaded*, newer ones *New*.
+- Changes are listed per army (catalogue file; libraries show which armies use them, core rules affect all):
+  units and other entries added / removed / changed, with the details — characteristics (`S 9 → 10`), points,
+  names, visibility, option limits, modifiers, and word-level differences in ability and rule texts.
+- The army filter shows only the files that matter for one army (its catalogue, its libraries and the core rules).
+- Commit messages link to the BSData issues they fix. When the app downloads an update, the **Changes** button in the
+  top bar opens that version.
+- Only the changed files of a version are downloaded (from GitHub, at the version and at its parent); the results are
+  kept in the browser, so each version is computed once. GitHub allows 60 API requests per hour without a token
+  (one per version); with the Gist token from the Army Builder connected, the limit is higher.
 
 ## Stratagems source
 

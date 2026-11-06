@@ -546,12 +546,14 @@ function setHash(o, replace) {
 function route() {
   /* Army Builder lives under #/b (builder.js) */
   const isBuilder = /^#\/b(\/|$)/.test(location.hash);
-  /* Play (battle tracker) lives under #/p (play.js) */
+  /* Play (battle tracker) lives under #/p (play.js), Change Log under #/log (changelog.js) */
   const isPlay = /^#\/p(\/|$)/.test(location.hash);
-  document.body.dataset.mode = isBuilder ? 'builder' : isPlay ? 'play' : 'codex';
+  const isLog = /^#\/log(\/|$)/.test(location.hash);
+  document.body.dataset.mode = isBuilder ? 'builder' : isPlay ? 'play' : isLog ? 'log' : 'codex';
   for (const a of document.querySelectorAll('.modes a')) a.classList.toggle('on', a.dataset.mode === document.body.dataset.mode);
   if (isBuilder) { document.body.classList.remove('nav-open'); if (window.Builder) Builder.route(); return; }
   if (isPlay) { document.body.classList.remove('nav-open'); if (window.Play) Play.route(); return; }
+  if (isLog) { document.body.classList.remove('nav-open'); if (window.Changelog) Changelog.route(); return; }
   State.codexHash = location.hash;
   const o = parseHash();
   const fac = o.f && Data.cats[o.f] ? Data.cats[o.f] : (Data.cats[store.get('fac', '')] || (Data.factions[0] && Data.factions[0].cat));
@@ -1419,7 +1421,7 @@ async function checkForUpdate(manual, onDone) {
     latest.built = new Date().toISOString();
     latest.source = 'browser';
     await idbPut(IDB.key, { version: latest, files });
-    setStatus(`<button class="linkbtn" data-reload>${esc(String(latest.date).slice(0, 10))} · ${esc(latest.sha.slice(0, 7))} · Reload</button>`);
+    setStatus(`<button class="linkbtn" data-reload>${esc(String(latest.date).slice(0, 10))} · ${esc(latest.sha.slice(0, 7))} · Reload</button> <a class="linkbtn" href="#/log/${esc(latest.sha)}">Changes</a>`);
     if (onDone) onDone();
   } catch (e) {
     console.warn(e);
