@@ -28,6 +28,9 @@ const Builder = (() => {
     gistId() { return store.get('gistId', ''); },
     on() { return !!(this.token() && this.gistId()); },
     deleted() { return store.get('rosterDeleted', {}); },
+    /* Play games (play.js) travel in the same Gist file */
+    games() { return store.get('games', []); },
+    gamesDeleted() { return store.get('gameDeleted', {}); },
     async req(path, opts) {
       const r = await fetch(this.API + path, Object.assign({}, opts, {
         headers: Object.assign({ Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.token() }, opts && opts.body ? { 'Content-Type': 'application/json' } : {}),
@@ -35,7 +38,7 @@ const Builder = (() => {
       if (!r.ok) throw new Error('GitHub ' + r.status + (r.status === 401 ? ' (token)' : r.status === 404 ? ' (Gist)' : ''));
       return r.status === 204 ? null : r.json();
     },
-    payload() { return { app: '40k-codex', version: 1, updated: Date.now(), rosters, deleted: this.deleted() }; },
+    payload() { return { app: '40k-codex', version: 2, updated: Date.now(), rosters, deleted: this.deleted(), games: this.games(), gamesDeleted: this.gamesDeleted() }; },
     /* finds an existing Gist with our file, otherwise creates a private one */
     async connect(token) {
       store.set('ghToken', token.trim());
@@ -61,19 +64,27 @@ const Builder = (() => {
       if (f.truncated && f.raw_url) text = await (await fetch(f.raw_url)).text();
       return JSON.parse(text || '{}');
     },
-    merge(remote) {
-      const del = Object.assign({}, remote.deleted || {});
-      for (const [id, ts] of Object.entries(this.deleted())) del[id] = Math.max(del[id] || 0, ts);
-      const map = new Map(rosters.map(r => [r.id, r]));
-      for (const rr of arr(remote.rosters)) {
+    /* items are merged by their "updated" time; tombstones remove items not changed after the deletion */
+    mergeList(local, remoteList, localDel, remoteDel) {
+      const del = Object.assign({}, remoteDel || {});
+      for (const [id, ts] of Object.entries(localDel || {})) del[id] = Math.max(del[id] || 0, ts);
+      const map = new Map(arr(local).map(r => [r.id, r]));
+      for (const rr of arr(remoteList)) {
         if (del[rr.id] && del[rr.id] >= (rr.updated || 0)) continue;
         const lr = map.get(rr.id);
         if (!lr || (rr.updated || 0) > (lr.updated || 0)) map.set(rr.id, rr);
       }
       for (const [id, ts] of Object.entries(del)) { const r = map.get(id); if (r && (r.updated || 0) <= ts) map.delete(id); }
-      rosters = [...map.values()];
+      return { list: [...map.values()], del };
+    },
+    merge(remote) {
+      const r = this.mergeList(rosters, remote.rosters, this.deleted(), remote.deleted);
+      rosters = r.list;
       store.set(KEY, rosters);
-      store.set('rosterDeleted', del);
+      store.set('rosterDeleted', r.del);
+      const g = this.mergeList(this.games(), remote.games, this.gamesDeleted(), remote.gamesDeleted);
+      store.set('games', g.list);
+      store.set('gameDeleted', g.del);
     },
     /* pull, merge, push when something differs */
     async now() {
@@ -82,12 +93,16 @@ const Builder = (() => {
       try {
         const remote = await this.pull() || {};
         const before = JSON.stringify(rosters);
+        const beforeGames = JSON.stringify(this.games());
         this.merge(remote);
         const changedLocal = JSON.stringify(rosters) !== before;
-        const same = JSON.stringify(arr(remote.rosters)) === JSON.stringify(rosters) && JSON.stringify(remote.deleted || {}) === JSON.stringify(this.deleted());
+        const changedGames = JSON.stringify(this.games()) !== beforeGames;
+        const same = JSON.stringify(arr(remote.rosters)) === JSON.stringify(rosters) && JSON.stringify(remote.deleted || {}) === JSON.stringify(this.deleted()) &&
+          JSON.stringify(arr(remote.games)) === JSON.stringify(this.games()) && JSON.stringify(remote.gamesDeleted || {}) === JSON.stringify(this.gamesDeleted());
         if (!same) await this.req('/gists/' + this.gistId(), { method: 'PATCH', body: JSON.stringify({ files: { [this.FILE]: { content: JSON.stringify(this.payload(), null, 1) } } }) });
         this.last = Date.now(); store.set('syncLast', this.last); this.lastPull = Date.now();
-        if (changedLocal) { const id = cur && cur.id; cur = id ? rosters.find(r => r.id === id) || null : null; render(); }
+        if (changedLocal) { const id = cur && cur.id; cur = id ? rosters.find(r => r.id === id) || null : null; if (document.body.dataset.mode === 'builder') render(); }
+        if ((changedGames || changedLocal) && window.Play && document.body.dataset.mode === 'play') Play.refresh();
       } catch (e) {
         console.warn(e); this.error = e.message;
       } finally { this.busy = false; this.paint(); }
@@ -100,7 +115,7 @@ const Builder = (() => {
       return '☁ ✓';
     },
     paint() {
-      for (const b of document.querySelectorAll('[data-b="sync"]')) { b.textContent = this.label(); b.title = this.error || (this.last ? new Date(this.last).toLocaleString() : 'Sync'); b.classList.toggle('err', !!this.error); }
+      for (const b of document.querySelectorAll('[data-b="sync"], [data-pa="sync"]')) { b.textContent = this.label(); b.title = this.error || (this.last ? new Date(this.last).toLocaleString() : 'Sync'); b.classList.toggle('err', !!this.error); }
       if (modalKind === 'sync') $('#modalBody').innerHTML = renderSyncModal();
     },
   };
@@ -815,7 +830,7 @@ const Builder = (() => {
     document.addEventListener('input', onInput);
     $('#modal').addEventListener('click', (e) => { if (e.target.closest('.modal-x') || e.target === $('#modal')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#modal').hidden) closeModal(); });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && document.body.dataset.mode === 'builder') Sync.now(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && /^(builder|play)$/.test(document.body.dataset.mode)) Sync.now(); });
     $('#codexLink').addEventListener('click', (e) => { e.preventDefault(); location.hash = State.codexHash && !/^#\/b/.test(State.codexHash) ? State.codexHash : '#/'; });
   }
 
@@ -839,6 +854,9 @@ const Builder = (() => {
     if (Sync.on() && Date.now() - Sync.lastPull > 20000) Sync.now();
   }
 
-  return { route, exportText, validate, sync: Sync };
+  /* the Sync settings modal, also opened from Play */
+  function openSync() { bindOnce(); openModal(renderSyncModal(), 'sync'); }
+
+  return { route, exportText, validate, sync: Sync, openSync };
 })();
 window.Builder = Builder;

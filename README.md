@@ -12,7 +12,7 @@ Open `index.html` in a browser (double-click). The first load takes a few second
 Upload these files to a GitHub repository (Add file → Upload files):
 
 ```
-index.html  app.js  builder.js  changelog.js  style.css  .nojekyll  README.md
+index.html  app.js  builder.js  play.js  changelog.js  style.css  .nojekyll  README.md
 data/stratagems.js
 ```
 
@@ -22,10 +22,11 @@ The app is served at `https://<user>.github.io/<repository>/`. The site is publi
 
 ## Sync between devices (GitHub Gist)
 
-Army Builder → ☁ → paste a GitHub fine-grained token with **Gists: Read and write** → Connect.
-The app finds (or creates) a private Gist with the file `40k-codex-rosters.json` and keeps the rosters in sync:
-after every change, when the page is opened and when it comes back to the foreground. Use the same token on
-every device. The token is stored only in that browser.
+Army Builder or Play → ☁ → paste a GitHub fine-grained token with **Gists: Read and write** → Connect.
+The app finds (or creates) a private Gist with the file `40k-codex-rosters.json` and keeps the rosters and the
+Play games in sync: after every change, when the page is opened and when it comes back to the foreground. Use the
+same token on every device. The token is stored only in that browser. Each roster and game is merged by its last
+change; when the same game is changed on two devices at once, the later change wins.
 
 ## Updating the data
 
@@ -93,6 +94,49 @@ Switch between **Codex** and **Army Builder** in the top bar. Rosters are saved 
 Not covered yet: wargear choices and their point costs, points changes that depend on other selections
 (shown as warnings), detachment-specific unit restrictions.
 
+## Play (battle tracker)
+
+**Play** in the top bar tracks a game between two players. Games are saved in the browser and synced with the
+rosters through the GitHub Gist (☁, see above).
+
+- Setup: each player from an Army Roster or a faction + detachment, Force Disposition (each player's Primary
+  Mission is shown from the matchup), first turn, Tactical or Fixed Secondary Missions, optional extra CP cost for
+  Stratagems (opponent abilities). **Rules** holds every number below and can be changed per game.
+- Battle: battle round, whose turn and phase (◀ / Next ▶ or click a phase); after round 5 the end of the battle.
+  Per player: CP (start + Core CP + other − spent), VP (Primary / Secondary / Battle Ready) with the totals of the
+  current battle round, and Secondary Mission cards (Draw, Achieved / Score, Discard, New Orders).
+- Stratagems of the chosen detachments + Core Stratagems + New Orders; by default only the ones usable in the current
+  turn and phase. With an Army Roster, pick the **Target** unit. Optional +CP sections (e.g. Into the Fray) have
+  a selector. **Use** spends the CP; the button is disabled with the reason when a check fails.
+- Tables: VP per battle round (and end of the battle), VP and CP spent per phase. The log lists every action;
+  ✕ removes it (undo).
+
+The checks follow the official **Warhammer 40,000 11th Edition Core Rules** and the **Warhammer Event Companion**:
+
+| Rule | Source | Default |
+|---|---|---|
+| Both players gain 1CP in each Command phase (Core CP) | Core Rules | +1 |
+| The same Stratagem more than once in the same phase | Core Rules | not allowed |
+| The same unit targeted by more than one Stratagem in the same phase | Core Rules | not allowed (with a Target) |
+| Not enough CP; optional sections raise the CP cost | Core Rules | not allowed |
+| "Once per battle / battle round / turn", "cannot use … during the first battle round" | Stratagem text | enforced |
+| CP excluding Core CP (abilities, discarded Secondary Missions) | Event Companion | max 1 per battle round |
+| Battle rounds | Event Companion | 5 |
+| Primary Mission VP | Event Companion | max 45, up to 15 per battle round |
+| Secondary Missions VP | Event Companion | max 45, up to 15 per battle round |
+| VP per Fixed Mission card | Event Companion | 20 |
+| Battle Ready | Event Companion | 10VP |
+| VP scored at the end of the battle | Event Companion FAQ | not limited per battle round |
+| Tactical: draw two at the start of your Command phase; achieved cards are discarded | Event Companion | reminder |
+| New Orders: end of your Command phase, 1CP, discard one card and draw one | Event Companion | once per battle |
+| Discarding one or more active cards at the end of your turn | Event Companion | 1CP (once per turn) |
+| Fixed Missions cannot be discarded | Event Companion | enforced |
+
+VP above a maximum are ignored (the log shows how many). Limits written in a Stratagem for a specific unit or model
+("cannot target the same unit more than once per battle") are shown as a note, not checked.
+The Primary Mission matchup table comes from [gregario/warhammer-oracle](https://github.com/gregario/warhammer-oracle)
+(MIT); the Event Companion shows the matchup only as graphics. Mission and card texts are not included: Secondary
+Mission names are typed in and remembered.
 ## Change Log
 
 **Change Log** in the top bar shows what changed in the BSData data, version by version (needs internet).

@@ -546,11 +546,13 @@ function setHash(o, replace) {
 function route() {
   /* Army Builder lives under #/b (builder.js) */
   const isBuilder = /^#\/b(\/|$)/.test(location.hash);
-  /* Change Log lives under #/log (changelog.js) */
+  /* Play (battle tracker) lives under #/p (play.js), Change Log under #/log (changelog.js) */
+  const isPlay = /^#\/p(\/|$)/.test(location.hash);
   const isLog = /^#\/log(\/|$)/.test(location.hash);
-  document.body.dataset.mode = isBuilder ? 'builder' : isLog ? 'log' : 'codex';
+  document.body.dataset.mode = isBuilder ? 'builder' : isPlay ? 'play' : isLog ? 'log' : 'codex';
   for (const a of document.querySelectorAll('.modes a')) a.classList.toggle('on', a.dataset.mode === document.body.dataset.mode);
   if (isBuilder) { document.body.classList.remove('nav-open'); if (window.Builder) Builder.route(); return; }
+  if (isPlay) { document.body.classList.remove('nav-open'); if (window.Play) Play.route(); return; }
   if (isLog) { document.body.classList.remove('nav-open'); if (window.Changelog) Changelog.route(); return; }
   State.codexHash = location.hash;
   const o = parseHash();
