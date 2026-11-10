@@ -448,9 +448,11 @@ function pointsInfo(node, S) {
     notes.set(txt, true);
   };
 
+  /* per-model costs can be multiplied by the model count when every model costs the same */
+  const samePm = perModel.length > 0 && perModel.every(m => m.pts === perModel[0].pts);
   const at = (n) => {
     let v = base;
-    if (perModel.length === 1) v += perModel[0].pts * n;
+    if (samePm) v += perModel[0].pts * n;
     for (const { m, extra } of mods) {
       const g = { type: 'and', conditions: arr(m.conditions), conditionGroups: arr(m.conditionGroups).concat(extra) };
       const ok = evalGroup(g, n, S);
@@ -484,7 +486,7 @@ function pointsInfo(node, S) {
   }
   if (!tiers.length) tiers.push({ from: lo, to: hi, pts: base });
   const min = Math.min(...tiers.map(t => t.pts));
-  return { base, tiers, min, unknown, notes: [...notes.keys()], perModel: perModel.length > 1 ? perModel : [] };
+  return { base, tiers, min, unknown, notes: [...notes.keys()], perModel: perModel.length > 1 && !samePm ? perModel : [] };
 }
 
 /* =====================================================================
@@ -512,7 +514,15 @@ function findRule(fcat, kw) {
   const anti = k.match(/^anti-/);
   if (anti && g.has('anti')) return g.get('anti');
   if (anti && g.has('anti-')) return g.get('anti-');
-  return null;
+  /* variants: "Twin Linked", "LETHAL HITS: non-MONSTER/VEHICLE", "Sustained Hits 2: ..." -> the longest rule name they start with */
+  const norm = s => s.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+  const nk = norm(k);
+  let best = null, bestLen = 0;
+  for (const [name, r] of g) {
+    const n = norm(name);
+    if (n.length > bestLen && (nk === n || nk.startsWith(n + ' ') || nk.startsWith(n + ':'))) { best = r; bestLen = n.length; }
+  }
+  return best;
 }
 
 /* =====================================================================
@@ -1377,7 +1387,7 @@ async function updateStratagems() {
 }
 
 let updating = false;
-async function checkForUpdate(manual, onDone) {
+async function checkForUpdate(manual, onDone, onFail) {
   if (updating) return;
   if (!manual && Date.now() - store.get('lastCheck', 0) < CHECK_EVERY_MS) return;
   updating = true;
@@ -1426,6 +1436,7 @@ async function checkForUpdate(manual, onDone) {
   } catch (e) {
     console.warn(e);
     setStatus('Update failed', e.message);
+    if (onFail) onFail(e);
   } finally {
     updating = false;
   }
@@ -1448,7 +1459,9 @@ async function checkForUpdate(manual, onDone) {
   } catch (err) {
     /* no local data at all: download it from GitHub, then reload */
     $('#loading').innerHTML = '<div class="spinner"></div><p id="firstLoad">Downloading data…</p>';
-    checkForUpdate(true, () => location.reload());
+    checkForUpdate(true, () => location.reload(), (e) => {
+      $('#loading').innerHTML = `<h2>Download failed</h2><p class="note">${esc(e.message)}</p><p><button class="btn primary" data-reload>Retry</button></p>`;
+    });
     return;
   }
 

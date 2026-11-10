@@ -88,7 +88,9 @@ const Builder = (() => {
     },
     /* pull, merge, push when something differs */
     async now() {
-      if (!this.on() || this.busy) return;
+      if (!this.on()) return;
+      /* a change made while a sync is running is pushed by a second run */
+      if (this.busy) { this.again = true; return; }
       this.busy = true; this.error = ''; this.paint();
       try {
         const remote = await this.pull() || {};
@@ -105,7 +107,10 @@ const Builder = (() => {
         if ((changedGames || changedLocal) && window.Play && document.body.dataset.mode === 'play') Play.refresh();
       } catch (e) {
         console.warn(e); this.error = e.message;
-      } finally { this.busy = false; this.paint(); }
+      } finally {
+        this.busy = false; this.paint();
+        if (this.again) { this.again = false; this.schedule(); }
+      }
     },
     schedule() { if (!this.on()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.now(), 2000); },
     label() {
@@ -324,6 +329,14 @@ const Builder = (() => {
       leadCount.set(k, (leadCount.get(k) || 0) + 1);
       if (leadCount.get(k) === 2) errs.push(`${tgt.u.name}: ${assocLabel(u)} 2 / max 1`);
     }
+    /* a unit and the units attached to it share one Enhancement */
+    const groupEnh = new Map();
+    for (const { ru } of units) {
+      if (!ru.enh) continue;
+      const k = ru.lead && units.some(x => x.ru.uid === ru.lead) ? ru.lead : ru.uid;
+      groupEnh.set(k, (groupEnh.get(k) || 0) + 1);
+    }
+    for (const [uid, n] of groupEnh) if (n > 1) errs.push(`${dispName(r, units.find(x => x.ru.uid === uid).ru)}: ${enT.name} ${n} / max 1`);
     for (const { u } of units) if (u.legends) { warns.push(`${u.name}: Legends`); }
     for (const { u } of units) if (buildSheet(u).points.notes.length) warns.push(`${u.name}: ${buildSheet(u).points.notes[0]}`);
     return { errs, warns, pts, ptsLimit, dp, dpLimit, enhCount, enhLimit, ptsName, dpName: dpT.name, enhName: enT.name };
@@ -339,9 +352,22 @@ const Builder = (() => {
   const sizeName = (r) => { const s = battleSizes().list.find(x => x.id === r.size); return s ? s.name : ''; };
   const detNames = (r) => r.dets.map(id => { const d = detList(r).find(x => x.e.id === id); return d ? d.e.name : null; }).filter(Boolean);
 
+  /* scroll positions survive a re-render of the same screen (adding a unit, changing an option, ...) */
+  const SCROLLERS = ['.b-rosters', '.b-picker .list', '.b-roster', '.b-viewlist'];
+  let lastScreen = '';
   function render() {
     const root = el();
     const mode = ui.creating || !cur ? 'new' : ui.mode;
+    const screen = mode + '|' + (cur ? cur.id : '');
+    const keep = screen === lastScreen ? SCROLLERS.map(s => { const n = $(s, root); return n ? n.scrollTop : 0; }).concat(root.scrollTop) : null;
+    lastScreen = screen;
+    renderScreen(root, mode);
+    if (keep) {
+      SCROLLERS.forEach((s, i) => { const n = $(s, root); if (n) n.scrollTop = keep[i]; });
+      root.scrollTop = keep[SCROLLERS.length];
+    }
+  }
+  function renderScreen(root, mode) {
     root.className = 'builder b-' + mode;
     if (mode === 'new') {
       root.innerHTML = `<aside class="b-rosters">${renderRosterList()}</aside><main class="b-roster">${renderNewForm()}</main>`;
@@ -705,6 +731,14 @@ const Builder = (() => {
     cur.units.push({ uid: newId(), id: u.id, n: opts.length ? opts[0].n : 1, enh: null, lead: null });
     save(); render();
   }
+  /* unit sizes that no longer exist after a data update move to the nearest valid size */
+  function fixSizes(r) {
+    for (const ru of r.units) {
+      const u = unitOf(r, ru);
+      const opts = u ? sizeOptions(u) : [];
+      if (opts.length && !opts.some(o => o.n === ru.n)) ru.n = (opts.find(o => o.n >= ru.n) || opts[opts.length - 1]).n;
+    }
+  }
   function cleanEnhancements(r) {
     const valid = new Set(enhList(r).map(x => x.e.id));
     for (const x of r.units) if (x.enh && !valid.has(x.enh)) x.enh = null;
@@ -739,7 +773,16 @@ const Builder = (() => {
     if (!cur) return;
     if (a === 'add') return addUnit(t.dataset.uid);
     if (a === 'sheet') { const u = pool(cur).find(x => x.id === t.dataset.uid); if (u) openModal(renderSheet(u, true)); return; }
-    if (a === 'select') { ui.sel = t.dataset.ruid; if (inModal) closeModal(); render(); el().querySelector('.b-viewsheet') && (el().querySelector('.b-viewsheet').scrollTop = 0); return; }
+    if (a === 'select') {
+      ui.sel = t.dataset.ruid; if (inModal) closeModal(); render();
+      const sheet = el().querySelector('.b-viewsheet');
+      if (sheet) {
+        sheet.scrollTop = 0;
+        /* one-column layout: the datasheet is below the roster */
+        if (getComputedStyle(el()).display === 'block') sheet.scrollIntoView({ block: 'start' });
+      }
+      return;
+    }
     if (a === 'save') { ui.mode = 'view'; save(); render(); return; }
     if (a === 'edit') { ui.mode = 'edit'; render(); return; }
     if (a === 'settings') { openModal(renderSettings(), 'settings'); return; }
@@ -848,6 +891,7 @@ const Builder = (() => {
       ui.mode = cur.units.length ? 'view' : 'edit';
     }
     if (cur && !Data.cats[cur.fac]) cur = null;
+    if (cur) fixSizes(cur);
     if (!cur && !rosters.length) { ui.creating = true; }
     if (ui.creating && !ui.form) ui.form = defaultForm();
     render();

@@ -49,6 +49,8 @@ body {
   color: var(--text);
   font: 14px/1.45 var(--sans);
   overflow: hidden;
+  /* top bar + one content pane that takes the remaining height (the bar may wrap on narrow screens) */
+  display: flex; flex-direction: column;
 }
 button, input, select { font: inherit; color: inherit; }
 code { font-family: var(--mono); font-size: .92em; }
@@ -56,7 +58,7 @@ b { color: var(--text); }
 
 /* ---------- top bar ---------- */
 .topbar {
-  height: var(--topbar-h);
+  min-height: var(--topbar-h); flex: none;
   display: flex; align-items: center; gap: 14px;
   padding: 0 16px;
   background: var(--panel);
@@ -87,7 +89,7 @@ b { color: var(--text); }
 
 /* ---------- layout ---------- */
 .layout {
-  height: calc(100% - var(--topbar-h));
+  flex: 1 1 0; min-height: 0;
   display: grid;
   grid-template-columns: 236px 360px minmax(0, 1fr);
 }
@@ -361,7 +363,7 @@ body[data-mode="builder"] .compare-tray { display: none !important; }
 body[data-mode="builder"] .search,
 body[data-mode="builder"] .nav-toggle { visibility: hidden; pointer-events: none; }
 body[data-mode="builder"] .builder {
-  display: grid; height: calc(100% - var(--topbar-h));
+  display: grid; flex: 1 1 0; min-height: 0;
   grid-template-columns: 240px 380px minmax(0, 1fr);
 }
 body[data-mode="builder"] .builder.b-new { grid-template-columns: 240px minmax(0, 1fr); }
@@ -460,7 +462,7 @@ body[data-mode="log"] .compare-tray { display: none !important; }
 body[data-mode="log"] .search,
 body[data-mode="log"] .nav-toggle { visibility: hidden; pointer-events: none; }
 body[data-mode="log"] .changelog {
-  display: grid; height: calc(100% - var(--topbar-h));
+  display: grid; flex: 1 1 0; min-height: 0;
   grid-template-columns: 340px minmax(0, 1fr);
 }
 .ld-side { border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; min-height: 0; background: var(--panel); }
@@ -547,7 +549,7 @@ body[data-mode="play"] .layout,
 body[data-mode="play"] .compare-tray { display: none !important; }
 body[data-mode="play"] .search,
 body[data-mode="play"] .nav-toggle { visibility: hidden; pointer-events: none; }
-body[data-mode="play"] .play { display: grid; height: calc(100% - var(--topbar-h)); grid-template-columns: 240px minmax(0, 1fr); }
+body[data-mode="play"] .play { display: grid; flex: 1 1 0; min-height: 0; grid-template-columns: 240px minmax(0, 1fr); }
 .p-games { overflow-y: auto; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
 .p-main { overflow-y: auto; min-height: 0; padding: 18px 24px 80px; }
 .p-gap { margin-top: 16px; }
@@ -667,16 +669,17 @@ body[data-mode="play"] .play { display: grid; height: calc(100% - var(--topbar-h
   .modes a { padding: 5px 8px; }
 }
 @media (max-width: 520px) {
-  .brand-name { display: none; }
+  .brand { display: none; }
   .chk { font-size: 12px; }
-  /* phone: search moves to a second row of the top bar; the mode buttons keep their place */
-  :root { --topbar-h: 100px; }
-  body[data-mode="builder"], body[data-mode="play"], body[data-mode="log"] { --topbar-h: 54px; }
-  .topbar { flex-wrap: wrap; align-content: flex-start; row-gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+  /* phone: one row of buttons; the update status and the search get rows of their own below it */
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
   /* four modes: the mode bar takes the free width of the first row and scrolls sideways if it still does not fit */
   .modes { margin-right: auto; flex: 1 1 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .modes::-webkit-scrollbar { display: none; }
   .modes a { padding: 5px 7px; font-size: 12.5px; }
+  .data-status { order: 9; flex: 1 1 100%; max-width: none; }
   .search { order: 10; flex: 1 1 100%; max-width: none; margin-left: 0; }
-  body[data-mode="builder"] .search, body[data-mode="play"] .search, body[data-mode="log"] .search { display: none; }
+  body[data-mode="builder"] .search, body[data-mode="builder"] .nav-toggle,
+  body[data-mode="play"] .search, body[data-mode="play"] .nav-toggle,
+  body[data-mode="log"] .search, body[data-mode="log"] .nav-toggle { display: none; }
 }

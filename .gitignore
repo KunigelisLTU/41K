@@ -8,3 +8,5 @@ data/update.log
 data/stratagems.version.json
 data/*.tmp
 .claude/
+# Rulebook PDFs stay local (large, and the site is public)
+*.pdf
