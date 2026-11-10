@@ -73,7 +73,7 @@ function ensureIndex(cat) {
   if (cat.index) return cat.index;
   const idx = new Map();
   const r = cat.raw;
-  for (const key of ['sharedSelectionEntries', 'sharedSelectionEntryGroups', 'sharedProfiles', 'sharedRules', 'sharedInfoGroups', 'categoryEntries', 'selectionEntries'])
+  for (const key of ['sharedSelectionEntries', 'sharedSelectionEntryGroups', 'sharedProfiles', 'sharedRules', 'sharedInfoGroups', 'sharedAssociations', 'categoryEntries', 'selectionEntries'])
     for (const o of arr(r[key])) if (o && o.id && !idx.has(o.id)) idx.set(o.id, o);
   const walk = o => {
     if (Array.isArray(o)) { for (const x of o) walk(x); return; }
@@ -135,6 +135,12 @@ function factionUnits(fcat) {
     if (ids.has(node._targetId)) continue;
     if (node.type === 'unit' || node.type === 'model') {
       ids.add(node._targetId);
+      /* associations can also be links to shared associations (e.g. Biologus Putrifier "Leading") */
+      const shared = arr(node.associationLinks).filter(l => !l.hidden).map(l => {
+        const t = resolve(l.targetId, fcat.scope);
+        return t ? Object.assign({}, t.node, { name: l.name || t.node.name }) : null;
+      }).filter(Boolean);
+      if (shared.length) node.associations = arr(node.associations).concat(shared);
       const catLinks = arr(node.categoryLinks).filter(l => !l.hidden);
       const prim = catLinks.find(l => l.primary);
       units.push({
@@ -698,7 +704,8 @@ function profileCols(name) { return arr(profileType(name).characteristicTypes).m
 function costTypeName(id) { const t = arr(Data.gs.raw.costTypes).find(c => c.id === id); return t ? t.name : ''; }
 function modelsLabel(a, b) { const n = a === b ? String(a) : `${a}–${b}`; return `${n} ${a === 1 && b === 1 ? 'model' : 'models'}`; }
 
-function renderSheet(u, compact) {
+/* opt.only: Map of weapon key -> count (only these weapons are listed); opt.head: extra html above the weapons */
+function renderSheet(u, compact, opt) {
   const S = buildSheet(u);
   const P = S.points;
   const pts = costTypeName(Data.ptsId);
@@ -741,8 +748,10 @@ function renderSheet(u, compact) {
   }
 
   const multiModel = S.modelNames.size > 1;
-  h += weaponTable('Ranged Weapons', S.ranged, u, multiModel);
-  h += weaponTable('Melee Weapons', S.melee, u, multiModel);
+  if (opt && opt.head) h += opt.head;
+  const only = (opt && opt.only) || null;
+  h += weaponTable('Ranged Weapons', S.ranged, u, multiModel, only);
+  h += weaponTable('Melee Weapons', S.melee, u, multiModel, only);
 
   /* Abilities: rules (chips) + ability profiles */
   if (S.rules.size || S.abilities.size) {
@@ -816,16 +825,16 @@ function renderSheet(u, compact) {
 }
 function rng(a, b) { if (b === Infinity || b == null) return `${a}+`; return a === b ? String(a) : `${a}–${b}`; }
 
-function weaponTable(type, map, u, multiModel) {
-  if (!map.size) return '';
+function weaponTable(type, map, u, multiModel, only) {
   const cols = profileCols(type).filter(c => c !== 'Keywords');
-  const rows = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const rows = [...map].filter(([k]) => !only || only.has(k)).map(([k, w]) => Object.assign({ n: only ? only.get(k) : 0 }, w)).sort((a, b) => a.name.localeCompare(b.name));
+  if (!rows.length) return '';
   let h = `<section class="sec"><h3>${esc(profileType(type).name)}</h3><div class="tablewrap"><table class="wpn"><thead><tr><th></th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>`;
   for (const w of rows) {
     const kws = (w.ch.Keywords || '').split(',').map(s => s.trim()).filter(s => s && s !== '-');
-    h += `<tr><td><div class="wname">${esc(w.name)}</div>`;
+    h += `<tr><td><div class="wname">${esc(w.name)}${w.n > 1 ? ` <span class="wcount">×${w.n}</span>` : ''}</div>`;
     if (kws.length) h += `<div class="kws">${kws.map(k => { const r = findRule(u.fac, k); return r ? `<button class="kw-chip" data-rule="${esc(k)}" data-desc="${esc(r.description || '')}">${esc(k)}</button>` : `<span class="kw-chip norule">${esc(k)}</span>`; }).join('')}</div>`;
-    if (multiModel && w.carriers.size) h += `<div class="wcarry">${esc([...w.carriers].join(', '))}</div>`;
+    if (multiModel && !only && w.carriers.size) h += `<div class="wcarry">${esc([...w.carriers].join(', '))}</div>`;
     h += `</td>${cols.map(c => `<td class="num">${esc(w.ch[c] != null && w.ch[c] !== '' ? w.ch[c] : '–')}</td>`).join('')}</tr>`;
   }
   return h + `</tbody></table></div></section>`;

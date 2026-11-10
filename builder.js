@@ -8,7 +8,7 @@ const Builder = (() => {
   const KEY = 'rosters';
   let rosters = store.get(KEY, []);
   let cur = null;
-  const ui = { q: '', cat: null, allies: false, creating: false, mode: 'edit', sel: null, form: null };
+  const ui = { q: '', cat: null, allies: false, creating: false, mode: 'edit', sel: null, form: null, openW: new Set() };
 
   const persist = () => { store.set(KEY, rosters); Sync.schedule(); };
   const save = () => { if (cur) cur.updated = Date.now(); persist(); };
@@ -272,6 +272,30 @@ const Builder = (() => {
     return same.length > 1 ? `${name} #${same.indexOf(ru) + 1}` : name;
   }
   function assocLabel(u) { const a = arr(u.node.associations)[0]; return a ? (a.label || a.name) : ''; }
+  /* How many units may be attached to this unit, from its own "associations" constraints and their modifiers
+     (e.g. Plague Marines: 1, or 2 when one of them is a Biologus Putrifier, Tallyman, ...).
+     Returns [{ name, n, max }] for every limit, or null when the unit defines none. */
+  function assocLimits(tu, attached) {
+    const cs = arr(tu.node.constraints).filter(c => c.field === 'associations' && c.type === 'max' && c.scope === 'self');
+    if (!cs.length) return null;
+    const count = (id) => attached.filter(a => !id || id === 'any' || a.id === id || a.catIds.has(id)).length;
+    const ev = (g) => {
+      const parts = arr(g.conditions).map(c => (c.field === 'associations' && c.scope === 'self' ? cmp(c.type, count(c.childId), Number(c.value)) : null))
+        .concat(arr(g.conditionGroups).map(ev));
+      if (!parts.length) return true;
+      if (g.type === 'or') return parts.some(p => p === true) ? true : parts.some(p => p === null) ? null : false;
+      return parts.some(p => p === false) ? false : parts.some(p => p === null) ? null : true;
+    };
+    return cs.map(c => {
+      let v = Number(c.value);
+      for (const { m, extra } of flattenMods(tu.node)) {
+        if (m.field !== c.id || arr(m.repeats).length) continue;
+        if (ev({ type: 'and', conditions: arr(m.conditions), conditionGroups: arr(m.conditionGroups).concat(extra) }) !== true) continue;
+        if (m.type === 'set') v = Number(m.value); else if (m.type === 'increment') v += Number(m.value); else if (m.type === 'decrement') v -= Number(m.value);
+      }
+      return { name: c.childName || '', n: count(c.childId), max: v };
+    }).filter(l => l.max >= 0);
+  }
 
   /* =====================================================================
      Validation
@@ -319,15 +343,30 @@ const Builder = (() => {
       if (!isChar(u) || isEpic(u)) errs.push(`${u.name}: ${en.e.name}`);
     }
     for (const [id, n] of seenEnh) if (n > 1) errs.push(`${enhById(r, id).e.name}: ${n} / max 1`);
-    const leadCount = new Map();
+    const joined = new Map();
     for (const { ru, u } of units) {
       if (!ru.lead) continue;
       const tgt = units.find(x => x.ru.uid === ru.lead);
       if (!tgt) continue;
       if (!canAttach(u, tgt.u) || tgt.ru.lead) errs.push(`${u.name} → ${tgt.u.name}`);
-      const k = ru.lead + '|' + assocLabel(u);
-      leadCount.set(k, (leadCount.get(k) || 0) + 1);
-      if (leadCount.get(k) === 2) errs.push(`${tgt.u.name}: ${assocLabel(u)} 2 / max 1`);
+      if (!joined.has(ru.lead)) joined.set(ru.lead, { tgt, list: [] });
+      joined.get(ru.lead).list.push(u);
+    }
+    for (const { tgt, list } of joined.values()) {
+      const lims = assocLimits(tgt.u, list);
+      if (lims) {
+        for (const l of lims) if (l.n > l.max) errs.push(`${dispName(r, tgt.ru)}: ${l.name || assocLabel(list[0])} ${l.n} / max ${l.max}`);
+        continue;
+      }
+      /* no limit in the data: one attached unit per association label */
+      const byLabel = new Map();
+      for (const u of list) byLabel.set(assocLabel(u), (byLabel.get(assocLabel(u)) || 0) + 1);
+      for (const [lab, n] of byLabel) if (n > 1) errs.push(`${tgt.u.name}: ${lab} ${n} / max 1`);
+    }
+    /* models and wargear chosen for each unit */
+    for (const { ru, u } of units) {
+      if (!Loadout.configurable(u)) continue;
+      try { for (const e of Loadout.resolve(u, ru, r).errs) errs.push(`${dispName(r, ru)}: ${e}`); } catch (e) { console.warn(e); }
     }
     /* a unit and the units attached to it share one Enhancement */
     const groupEnh = new Map();
@@ -559,10 +598,29 @@ const Builder = (() => {
     if (targets.length || ru.lead) {
       h += `<select data-blead="${esc(ru.uid)}"><option value="">${esc(assocLabel(u))}: —</option>${targets.map(t => `<option value="${esc(t.ru.uid)}"${ru.lead === t.ru.uid ? ' selected' : ''}>${esc(dispName(r, t.ru))}</option>`).join('')}${leader && !targets.some(t => t.ru.uid === ru.lead) ? `<option value="${esc(ru.lead)}" selected>${esc(dispName(r, leader))}</option>` : ''}</select>`;
     }
+    const cfg = Loadout.configurable(u);
+    const open = cfg && ui.openW.has(ru.uid);
+    if (cfg) h += `<button class="btn b-wbtn${open ? ' on' : ''}${ru.w ? ' set' : ''}" data-b="wargear" data-ruid="${esc(ru.uid)}">⚔ Wargear ${open ? '▴' : '▾'}</button>`;
     h += `</div>`;
+    if (open) h += wargearPanel(r, ru, u);
     const att = r.units.filter(x => x.lead === ru.uid);
     if (att.length) h += `<div class="b-attached">${att.map(a => `<span class="tag">${esc(assocLabel(unitOf(r, a) || u))}: ${esc(dispName(r, a))}</span>`).join('')}</div>`;
     return h + `</div>`;
+  }
+  function wargearPanel(r, ru, u) {
+    try { return Loadout.panel(u, ru, r); } catch (e) { console.warn(e); return `<div class="b-err">✕ ${esc(e.message)}</div>`; }
+  }
+  function wargearModal(ruid) {
+    const ru = cur.units.find(x => x.uid === ruid);
+    const u = ru && unitOf(cur, ru);
+    if (!u) return '';
+    return `<h2 class="b-modal-title">${esc(dispName(cur, ru))}</h2><div class="sub b-load-sub">${esc(modelsLabel(ru.n, ru.n))}</div>${wargearPanel(cur, ru, u)}
+      <div class="b-actions"><button class="btn primary" data-b="closemodal">OK</button></div>`;
+  }
+  /* after a wargear change: save, repaint, keep the wargear modal (view mode) in step */
+  function wargearChanged(ruid) {
+    save(); render();
+    if (modalKind === 'wargear') $('#modalBody').innerHTML = wargearModal(ruid);
   }
 
   /* ---------- View mode ---------- */
@@ -627,7 +685,19 @@ const Builder = (() => {
       h += `<div class="b-attached b-attline">${lead ? `<button class="tag linkish" data-b="select" data-ruid="${esc(lead.uid)}">${esc(assocLabel(u))} → ${esc(dispName(r, lead))}</button>` : ''}
         ${att.map(a => `<button class="tag linkish" data-b="select" data-ruid="${esc(a.uid)}">${esc(assocLabel(unitOf(r, a) || u))}: ${esc(dispName(r, a))}</button>`).join('')}</div>`;
     }
-    return h + renderSheet(u, true);
+    /* units with wargear options: only the chosen weapons, unless "Show all weapons" is ticked */
+    let opt = null;
+    if (Loadout.configurable(u)) {
+      const all = store.get('showAllWeapons', false);
+      let only = null;
+      if (!all) { try { only = Loadout.weapons(u, ru, r); } catch (e) { console.warn(e); } }
+      opt = {
+        only: only && only.size ? only : null,
+        head: `<div class="b-wbar"><label class="chk"><input type="checkbox" id="bShowAll"${all ? ' checked' : ''}> Show all weapons</label>
+          <button class="btn sm" data-b="wmodal" data-ruid="${esc(ru.uid)}">⚔ Wargear</button></div>`,
+      };
+    }
+    return h + renderSheet(u, true, opt);
   }
 
   /* ---------- Detachment / Stratagems quick views ---------- */
@@ -702,7 +772,9 @@ const Builder = (() => {
       lines.push('', g.group.toUpperCase());
       for (const { ru, attached } of g.items) {
         const u = unitOf(r, ru);
-        if (u) lines.push(line(ru, u, attached ? `    + ${assocLabel(u)}: ` : '  '));
+        if (!u) continue;
+        lines.push(line(ru, u, attached ? `    + ${assocLabel(u)}: ` : '  '));
+        if (Loadout.configurable(u)) { try { for (const s of Loadout.summary(u, ru, r)) lines.push(`${attached ? '        ' : '    '}• ${s}`); } catch (e) { console.warn(e); } }
       }
     }
     if (v.errs.length) lines.push('', ...v.errs.map(e => '✕ ' + e));
@@ -796,8 +868,21 @@ const Builder = (() => {
     }
     if (a === 'clone') {
       const src = cur.units.find(x => x.uid === t.dataset.ruid);
-      if (src) { cur.units.splice(cur.units.indexOf(src) + 1, 0, { uid: newId(), id: src.id, n: src.n, enh: null, lead: null }); save(); render(); }
+      if (src) {
+        const copy = { uid: newId(), id: src.id, n: src.n, enh: null, lead: null };
+        if (src.w) copy.w = Object.assign({}, src.w);
+        cur.units.splice(cur.units.indexOf(src) + 1, 0, copy); save(); render();
+      }
       return;
+    }
+    if (a === 'wargear') { const id = t.dataset.ruid; if (ui.openW.has(id)) ui.openW.delete(id); else ui.openW.add(id); render(); return; }
+    if (a === 'wmodal') { openModal(wargearModal(t.dataset.ruid), 'wargear'); return; }
+    if (a === 'winc' || a === 'wdec' || a === 'wreset') {
+      const ru = cur.units.find(x => x.uid === t.dataset.ruid);
+      const u = ru && unitOf(cur, ru);
+      if (!u) return;
+      if (a === 'wreset') delete ru.w; else Loadout.step(u, ru, cur, t.dataset.k, a === 'winc' ? 1 : -1);
+      wargearChanged(ru.uid); return;
     }
     if (a === 'dup') {
       const r = JSON.parse(JSON.stringify(cur));
@@ -842,7 +927,15 @@ const Builder = (() => {
     if (t.id === 'bAllies') { ui.allies = t.checked; render(); return; }
     if (t.id === 'bLegends') { State.legends = t.checked; store.set('legends', State.legends); render(); return; }
     if (t.id === 'bRosterSel') { go(t.value); return; }
+    if (t.id === 'bShowAll') { store.set('showAllWeapons', t.checked); render(); return; }
     if (!cur) return;
+    if (t.dataset.bwsel || t.dataset.bwchk) {
+      const ru = cur.units.find(x => x.uid === (t.dataset.bwsel || t.dataset.bwchk));
+      const u = ru && unitOf(cur, ru);
+      if (!u) return;
+      if (t.dataset.bwsel) Loadout.pick(u, ru, t.dataset.g, t.value); else Loadout.setCount(u, ru, t.dataset.k, t.checked ? 1 : 0);
+      wargearChanged(ru.uid); return;
+    }
     if (t.id === 'bName') { cur.name = t.value.trim() || cur.name; save(); const l = $('.b-rosters', el()); if (l) l.innerHTML = renderRosterList(); return; }
     const find = (id) => cur.units.find(x => x.uid === id);
     if (t.dataset.bsize) { const ru = find(t.dataset.bsize); if (ru) { ru.n = Number(t.value); save(); render(); } return; }

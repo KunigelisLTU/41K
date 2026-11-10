@@ -683,3 +683,26 @@ body[data-mode="play"] .play { display: grid; flex: 1 1 0; min-height: 0; grid-t
   body[data-mode="play"] .search, body[data-mode="play"] .nav-toggle,
   body[data-mode="log"] .search, body[data-mode="log"] .nav-toggle { display: none; }
 }
+
+/* ---------- wargear / loadout (Army Builder) ---------- */
+.b-wbtn { padding: 4px 10px; font-size: 13px; }
+.b-wbtn.on, .b-wbtn.set { border-color: var(--accent); color: var(--accent); }
+.b-load { margin-top: 8px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 4px; font-size: 13.5px; }
+.b-load-in { margin-left: 10px; padding-left: 10px; border-left: 2px solid var(--line); display: grid; gap: 4px; }
+.b-load-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.b-load-row .nm { flex: 1; min-width: 0; }
+.b-step { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.b-step b { min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+.b-step .g { font-size: 11.5px; }
+.b-step button:disabled { opacity: .35; cursor: default; }
+.b-load-g { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--accent); font-family: var(--serif); letter-spacing: .06em; font-size: 12.5px; text-transform: uppercase; }
+.b-load-g .g { font-family: var(--sans); letter-spacing: 0; }
+.b-load-fixed { color: var(--muted); font-size: 12.5px; }
+.b-load-sel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
+.b-load-sel select { flex: 1; min-width: 150px; max-width: 100%; }
+.b-load-chk { white-space: normal; color: var(--text); font-size: 13.5px; min-height: 26px; }
+.b-load-foot { display: flex; justify-content: flex-end; }
+.b-load .b-err { font-size: 13px; }
+.b-load-sub { margin: 2px 0 8px; color: var(--muted); font-size: 13px; }
+.b-wbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.wcount { color: var(--accent); font-weight: normal; font-size: 12.5px; }
